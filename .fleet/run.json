@@ -1,0 +1,17 @@
+{
+    "configurations": [
+        {
+            "name": "Build windows exe",
+            "type": "command",
+            "program": "sh",
+            "args": ["./build.bat"],
+        },
+        {
+            "name": "Run windows exe",
+            "type": "command",
+            "dependsOn": ["Build windows exe"],
+            "program": "wine",
+            "args": ["./build/handmade-windows.exe"]
+        }
+    ]
+}
