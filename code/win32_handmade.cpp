@@ -6,7 +6,6 @@
    $Notice: (C) Copyright 2024 by Beau Taapken. All Rights Reserved. $
    =================================================================== */
 
-#include <cstdint>
 #include <windows.h>
 #include <stdint.h>
 #include <xinput.h>
@@ -15,6 +14,16 @@
 #define internal static
 #define local_persist static
 #define global_variable static
+
+typedef int8_t int8;
+typedef int16_t int16;
+typedef int32_t int32;
+typedef int64_t int64;
+
+typedef uint8_t uint8;
+typedef uint16_t uint16;
+typedef uint32_t uint32;
+typedef uint64_t uint64;
 
 struct win32_offscreen_buffer {
     // NOTE(beau): Pixels are always 32-bits wide, Memory Order  0x BB GG RR xx
@@ -33,6 +42,7 @@ struct win32_window_dimension {
 // TODO(beau): This is a global for now.
 global_variable bool GlobalRunning;
 global_variable win32_offscreen_buffer GlobalBackbuffer;
+global_variable LPDIRECTSOUNDBUFFER GlobalSecondaryBuffer;
 
 // NOTE(beau): XInputGetState
 #define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE *pState)
@@ -52,7 +62,7 @@ X_INPUT_SET_STATE(XInputSetStateStub) {
 global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define XInputSetState XInputSetState_
 
-#define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *PPds, LPUNKNOWN pUnkOuter)
+#define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter);
 typedef DIRECT_SOUND_CREATE(direct_sound_create);
 
 internal void Win32LoadXInput(void) {
@@ -75,7 +85,7 @@ internal void Win32LoadXInput(void) {
     }
 }
 
-internal void Win32InitDSound(HWND Window, int32_t SamplesPerSecond, int32_t BufferSize) {
+internal void Win32InitDSound(HWND Window, int32 SamplesPerSecond, int32 BufferSize) {
     // NOTE(beau): Load the library
     HMODULE DSoundLibrary = LoadLibraryA("dsound.dll");
 
@@ -90,9 +100,9 @@ internal void Win32InitDSound(HWND Window, int32_t SamplesPerSecond, int32_t Buf
             WaveFormat.wFormatTag = WAVE_FORMAT_PCM;
             WaveFormat.nChannels = 2;
             WaveFormat.nSamplesPerSec = SamplesPerSecond;
+            WaveFormat.wBitsPerSample = 16;
             WaveFormat.nBlockAlign = (WaveFormat.nChannels * WaveFormat.wBitsPerSample) / 8;
             WaveFormat.nAvgBytesPerSec = WaveFormat.nSamplesPerSec * WaveFormat.nBlockAlign;
-            WaveFormat.wBitsPerSample = 16;
             WaveFormat.cbSize = 0;
 
             if(!SUCCEEDED(DirectSound->SetCooperativeLevel(Window, DSSCL_PRIORITY))) {
@@ -123,8 +133,7 @@ internal void Win32InitDSound(HWND Window, int32_t SamplesPerSecond, int32_t Buf
             BufferDescription.dwFlags = 0;
             BufferDescription.dwBufferBytes = BufferSize;
             BufferDescription.lpwfxFormat = &WaveFormat;
-            LPDIRECTSOUNDBUFFER SecondaryBuffer;
-            HRESULT Error = DirectSound->CreateSoundBuffer(&BufferDescription, &SecondaryBuffer, 0);
+            HRESULT Error = DirectSound->CreateSoundBuffer(&BufferDescription, &GlobalSecondaryBuffer, 0);
             if (SUCCEEDED(Error)) {
                 OutputDebugStringA("Secondary buffer created successfully.\n");
             }
@@ -149,12 +158,12 @@ internal win32_window_dimension Win32GetWindowDimension(HWND Window) {
 
 internal void RenderWeirdGradient(win32_offscreen_buffer *Buffer, int BlueOffset, int GreenOffset){
     // TODO(beau): Let's see what the optimizer does
-    uint8_t *Row = (uint8_t *)Buffer->Memory;
+    uint8 *Row = (uint8 *)Buffer->Memory;
     for(int Y = 0; Y < Buffer->Height; Y++) {
-        uint32_t *Pixel = (uint32_t *)Row;
+        uint32 *Pixel = (uint32 *)Row;
         for(int X = 0; X < Buffer->Width; X++) {
-            uint8_t Blue = (X + BlueOffset);
-            uint8_t Green = (Y + GreenOffset);
+            uint8 Blue = (X + BlueOffset);
+            uint8 Green = (Y + GreenOffset);
 
             *Pixel++ = ((Green << 8) | Blue);
         }
@@ -236,7 +245,7 @@ internal LRESULT CALLBACK Win32MainWindowCallback(HWND Window,
         case WM_SYSKEYUP:
         case WM_KEYDOWN:
         case WM_KEYUP: {
-            uint32_t VKCode = WParam;
+            uint32 VKCode = WParam;
             bool WasDown = ((LParam & (1 << 30)) != 0);
             bool IsDown = ((LParam & (1 << 31)) == 0);
 
@@ -268,7 +277,7 @@ internal LRESULT CALLBACK Win32MainWindowCallback(HWND Window,
             }
 
             // This should be 0 or 1, if not, it'll still work, so no bool.
-            int32_t AltKeyWasDown = (LParam & (1 << 29));
+            int32 AltKeyWasDown = (LParam & (1 << 29));
             if ((VKCode == VK_F4) && AltKeyWasDown) {
                 GlobalRunning = false;
             }
@@ -330,10 +339,23 @@ int CALLBACK WinMain(
             // NOTE(beau): Since we specified CS_OWNDC, we can just get one device context and use it forever because we are not sharing it with anyone.
             HDC DeviceContext = GetDC(Window);
 
+            // NOTE(beau): Graphics test
             int XOffset = 0;
             int YOffset = 0;
 
-            Win32InitDSound(Window, 48000, 48000*sizeof(int16_t)*2);
+            // NOTE(beau): Sound test
+            int SamplesPerSecond = 48000;
+            int ToneHz = 256;
+            int16 ToneVolume = 500;
+            uint32 RunningSampleIndex = 0;
+            int SquareWavePeriod = SamplesPerSecond/ToneHz;
+            int HalfSquareWavePeriod = SquareWavePeriod/2;
+            int BytesPerSample = sizeof(int16)*2;
+            int SecondaryBufferSize = SamplesPerSecond * BytesPerSample;
+
+            Win32InitDSound(Window, SamplesPerSecond, SecondaryBufferSize);
+
+            GlobalSecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
 
             GlobalRunning = true;
             while(GlobalRunning) {
@@ -348,7 +370,7 @@ int CALLBACK WinMain(
                 }
 
                 // TODO(beau): Should we poll this more frequently
-                for (DWORD ControllerIndex=0; ControllerIndex < XUSER_MAX_COUNT; ControllerIndex++) {
+                for (DWORD ControllerIndex=0; ControllerIndex < XUSER_MAX_COUNT; ++ControllerIndex) {
                     XINPUT_STATE ControllerState;
                     if (XInputGetState(ControllerIndex, &ControllerState) == ERROR_SUCCESS) {
                         // NOTE(beau): This controller is plugged in
@@ -368,28 +390,73 @@ int CALLBACK WinMain(
                         bool XButton = (Pad->wButtons & XINPUT_GAMEPAD_X);
                         bool YButton = (Pad->wButtons & XINPUT_GAMEPAD_Y);
 
-                        int16_t StickX = Pad->sThumbLX;
-                        int16_t StickY = Pad->sThumbLY;
+                        int16 StickX = Pad->sThumbLX;
+                        int16 StickY = Pad->sThumbLY;
 
-                        if (AButton) {
-                            YOffset += 2;
-                        }
+                        XOffset += StickX >> 12;
+                        YOffset += StickY >> 12;
                     } else {
                         // NOTE(beau): The controller is not available
                     }
                 }
 
-                XINPUT_VIBRATION Vibration;
-                Vibration.wLeftMotorSpeed = 60000;
-                Vibration.wRightMotorSpeed = 60000;
-                XInputSetState(0, &Vibration);
+//                XINPUT_VIBRATION Vibration;
+//                Vibration.wLeftMotorSpeed = 60000;
+//                Vibration.wRightMotorSpeed = 60000;
+//                XInputSetState(0, &Vibration);
 
                 RenderWeirdGradient(&GlobalBackbuffer, XOffset, YOffset);
+
+                // NOTE(beau): DirectSound output test
+                DWORD PlayCursor;
+                DWORD WriteCursor;
+                if (SUCCEEDED(GlobalSecondaryBuffer->GetCurrentPosition(&PlayCursor, &WriteCursor))) {
+                    DWORD ByteToLock = RunningSampleIndex*BytesPerSample % SecondaryBufferSize;
+                    DWORD BytesToWrite;
+
+                    if (ByteToLock > PlayCursor) {
+                        BytesToWrite = (SecondaryBufferSize - ByteToLock);
+                        BytesToWrite += PlayCursor;
+                    } else {
+                        BytesToWrite = PlayCursor - ByteToLock;
+                    }
+
+                    // TODO(beau): More strenuous test!
+                    VOID *Region1;
+                    DWORD Region1Size;
+                    VOID *Region2;
+                    DWORD Region2Size;
+                    if (SUCCEEDED(GlobalSecondaryBuffer->Lock(
+                            ByteToLock, BytesToWrite,
+                            &Region1, &Region1Size,
+                            &Region2, &Region2Size,
+                            0))) {
+                        // TODO(beau): assert that RegionXSize is valid
+
+                        DWORD Region1SampleCount = Region1Size/BytesPerSample;
+                        int16 *SampleOut = (int16 *)Region1;
+                        for (DWORD SampleIndex = 0; SampleIndex < Region1SampleCount; SampleIndex++) {
+                            int16 SampleValue = ((RunningSampleIndex++ / HalfSquareWavePeriod) % 2) ? ToneVolume : -ToneVolume;
+                            *SampleOut++ = SampleValue;
+                            *SampleOut++ = SampleValue;
+                        }
+
+                        DWORD Region2SampleCount = Region2Size/BytesPerSample;
+                        SampleOut = (int16 *)Region2;
+                        for (DWORD SampleIndex = 0; SampleIndex < Region2SampleCount; SampleIndex++) {
+                            int16 SampleValue = ((RunningSampleIndex++ / HalfSquareWavePeriod) % 2) ? ToneVolume : -ToneVolume;
+                            *SampleOut++ = SampleValue;
+                            *SampleOut++ = SampleValue;
+                        }
+
+                        GlobalSecondaryBuffer->Unlock(Region1, Region1Size, Region2, Region2Size);
+                    }
+                }
 
                 win32_window_dimension Dimension = Win32GetWindowDimension(Window);
                 Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext, Dimension.Width, Dimension.Height);
 
-                ++XOffset;
+                --XOffset;
             }
         } else {
             // TODO(beau): Logging
