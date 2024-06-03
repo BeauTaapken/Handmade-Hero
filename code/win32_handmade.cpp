@@ -433,9 +433,10 @@ int CALLBACK WinMain(
                             0))) {
                         // TODO(beau): assert that RegionXSize is valid
 
+                        // TODO(beau): Collapse these two loops
                         DWORD Region1SampleCount = Region1Size/BytesPerSample;
                         int16 *SampleOut = (int16 *)Region1;
-                        for (DWORD SampleIndex = 0; SampleIndex < Region1SampleCount; SampleIndex++) {
+                        for (DWORD SampleIndex = 0; SampleIndex < Region1SampleCount; ++SampleIndex) {
                             int16 SampleValue = ((RunningSampleIndex++ / HalfSquareWavePeriod) % 2) ? ToneVolume : -ToneVolume;
                             *SampleOut++ = SampleValue;
                             *SampleOut++ = SampleValue;
@@ -443,7 +444,7 @@ int CALLBACK WinMain(
 
                         DWORD Region2SampleCount = Region2Size/BytesPerSample;
                         SampleOut = (int16 *)Region2;
-                        for (DWORD SampleIndex = 0; SampleIndex < Region2SampleCount; SampleIndex++) {
+                        for (DWORD SampleIndex = 0; SampleIndex < Region2SampleCount; ++SampleIndex) {
                             int16 SampleValue = ((RunningSampleIndex++ / HalfSquareWavePeriod) % 2) ? ToneVolume : -ToneVolume;
                             *SampleOut++ = SampleValue;
                             *SampleOut++ = SampleValue;
