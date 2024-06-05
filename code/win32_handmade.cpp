@@ -8,6 +8,7 @@
 
 #include <windows.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <xinput.h>
 #include <dsound.h>
 
@@ -372,6 +373,10 @@ int CALLBACK WinMain(
     LPSTR CmdLine,
     int ShowCmd) {
 
+    LARGE_INTEGER PerfCounterFrequencyResult;
+    QueryPerformanceFrequency(&PerfCounterFrequencyResult);
+    int64 PerfCountFrequency = PerfCounterFrequencyResult.QuadPart;
+
     Win32LoadXInput();
 
     WNDCLASSA WindowClass = {};
@@ -421,6 +426,10 @@ int CALLBACK WinMain(
             GlobalSecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
 
             GlobalRunning = true;
+
+            LARGE_INTEGER LastCounter;
+            QueryPerformanceCounter(&LastCounter);
+            int64 LastCycleCount = __rdtsc();
             while(GlobalRunning) {
                 MSG Message;
                 while (PeekMessage(&Message, 0, 0, 0, PM_REMOVE)) {
@@ -490,7 +499,24 @@ int CALLBACK WinMain(
                 win32_window_dimension Dimension = Win32GetWindowDimension(Window);
                 Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext, Dimension.Width, Dimension.Height);
 
-                --XOffset;
+                int64 EndCycleCount = __rdtsc();
+
+                LARGE_INTEGER EndCounter;
+                QueryPerformanceCounter(&EndCounter);
+
+                // TODO(beau): Display the value here
+                int64 CyclesElapsed = EndCycleCount - LastCycleCount;
+                int64 CounterElapsed = EndCounter.QuadPart - LastCounter.QuadPart;
+                float MSPerFrame = ((1000.0f*(float)CounterElapsed) / (float)PerfCountFrequency);
+                float FPS = (float)PerfCountFrequency / (float)CounterElapsed;
+                float MCPF = (float)((float)CyclesElapsed / (1000.0f * 1000.0f));
+
+                char Buffer[256];
+                sprintf(Buffer, "%.02fms/f,  %.02ff/s,  %.02fmc/f\n", MSPerFrame, FPS, MCPF);
+                OutputDebugStringA(Buffer);
+
+                LastCounter = EndCounter;
+                LastCycleCount = EndCycleCount;
             }
         } else {
             // TODO(beau): Logging
