@@ -27,14 +27,7 @@
     Just a partial list of stuff!!
 */
 
-#include <windows.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <xinput.h>
-#include <dsound.h>
-
-// TODO(beau): Implement sine ourselves
-#include <math.h>
 
 #define internal static
 #define local_persist static
@@ -53,6 +46,14 @@ typedef uint32_t uint32;
 typedef uint64_t uint64;
 
 #include "handmade.cpp"
+
+#include <windows.h>
+#include <stdio.h>
+#include <xinput.h>
+#include <dsound.h>
+
+// TODO(beau): Implement sine ourselves
+#include <math.h>
 
 struct win32_offscreen_buffer {
     // NOTE(beau): Pixels are always 32-bits wide, Memory Order  0x BB GG RR xx
