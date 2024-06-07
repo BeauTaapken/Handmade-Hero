@@ -8,24 +8,31 @@
     =================================================================== */
 
 /*
-    TODO(beau): Services that the platform layer provides to the game
+    TODO: Services that the platform layer provides to the game
 */
 
 /*
-    NOTE(beau): Services that the game provides to the platform layer.
+    NOTE: Services that the game provides to the platform layer.
     (this may expand in the future - sound on separate thread, etc.)
 */
 
 // FOUR THINGS - timing, controller/keyboard input, bitmap buffer to use, sound buffer to use
 struct game_offscreen_buffer {
-    // NOTE(beau): Pixels are always 32-bits wide, Memory Order  0x BB GG RR xx
+    // NOTE: Pixels are always 32-bits wide, Memory Order  0x BB GG RR xx
     void *Memory;
     int Width;
     int Height;
     int Pitch;
 };
 
-internal void GameUpdateAndRender(game_offscreen_buffer *Buffer, int BlueOffset, int GreenOffset);
+struct game_sound_output_buffer {
+    int SamplesPerSecond;
+    int SampleCount;
+    int16 *Samples;
+};
+
+internal void GameUpdateAndRender(game_offscreen_buffer *Buffer, int BlueOffset, int GreenOffset,
+                                  game_sound_output_buffer *SoundBuffer, int ToneHz);
 
 #define HANDMADE_H
 #endif
