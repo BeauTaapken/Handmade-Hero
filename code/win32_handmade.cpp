@@ -1,10 +1,31 @@
 /* ===================================================================
-   $File: $
-   $Date: $
-   $Revision: $
-   $Creator: Beau Taapken $
-   $Notice: (C) Copyright 2024 by Beau Taapken. All Rights Reserved. $
-   =================================================================== */
+    $File: $
+    $Date: $
+    $Revision: $
+    $Creator: Beau Taapken $
+    $Notice: (C) Copyright 2024 by Beau Taapken. All Rights Reserved. $
+    =================================================================== */
+
+/*
+    TODO(beau): THIS IS NOT A FINAL PLATFORM LAYER!!!
+
+    - Saved game locations
+    - Getting a handle to our own executable file
+    - Asset loading path
+    - Threading (launch a thread)
+    - Raw Input (support for multiple keyboards)
+    - Sleep/timeBeginPeriod
+    - ClipCursor() (for multimonitor support)
+    - Fullscreen support
+    - WM_SETCURSOR (control cursor visibility)
+    - QueryCancelAutoplay
+    - WM_ACTIVATEAPP (for when we are not the active application)
+    - Blit speed imporvements (BitBlt)
+    - Hardware acceleration (OpenGL or Direct3D or BOTH??)
+    - GetKeyboardLayout (for French keyboards, international WASD support)
+
+    Just a partial list of stuff!!
+*/
 
 #include <windows.h>
 #include <stdint.h>
@@ -30,6 +51,8 @@ typedef uint8_t uint8;
 typedef uint16_t uint16;
 typedef uint32_t uint32;
 typedef uint64_t uint64;
+
+#include "handmade.cpp"
 
 struct win32_offscreen_buffer {
     // NOTE(beau): Pixels are always 32-bits wide, Memory Order  0x BB GG RR xx
@@ -164,22 +187,6 @@ internal win32_window_dimension Win32GetWindowDimension(HWND Window) {
     Result.Height = ClientRect.bottom - ClientRect.top;
 
     return(Result);
-}
-
-internal void RenderWeirdGradient(win32_offscreen_buffer *Buffer, int BlueOffset, int GreenOffset){
-    // TODO(beau): Let's see what the optimizer does
-    uint8 *Row = (uint8 *)Buffer->Memory;
-    for(int Y = 0; Y < Buffer->Height; Y++) {
-        uint32 *Pixel = (uint32 *)Row;
-        for(int X = 0; X < Buffer->Width; X++) {
-            uint8 Blue = (X + BlueOffset);
-            uint8 Green = (Y + GreenOffset);
-
-            *Pixel++ = ((Green << 8) | Blue);
-        }
-
-        Row += Buffer->Pitch;
-    }
 }
 
 internal void Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height) {
@@ -475,7 +482,12 @@ int CALLBACK WinMain(
                     }
                 }
 
-                RenderWeirdGradient(&GlobalBackbuffer, XOffset, YOffset);
+                game_offscreen_buffer Buffer = {};
+                Buffer.Memory = GlobalBackbuffer.Memory;
+                Buffer.Width = GlobalBackbuffer.Width;
+                Buffer.Height = GlobalBackbuffer.Height;
+                Buffer.Pitch = GlobalBackbuffer.Pitch;
+                GameUpdateAndRender(&Buffer, XOffset, YOffset);
 
                 // NOTE(beau): DirectSound output test
                 DWORD PlayCursor;
@@ -486,7 +498,6 @@ int CALLBACK WinMain(
                     DWORD TargetCursor = ((PlayCursor + (SoundOutput.LatencySampleCount*SoundOutput.BytesPerSample)) % SoundOutput.SecondaryBufferSize);
                     DWORD BytesToWrite;
 
-                    // TODO(beau): Change this to using a lower latency offset from the playcursor when we actually start having sound effects.
                     if (ByteToLock > TargetCursor) {
                         BytesToWrite = (SoundOutput.SecondaryBufferSize - ByteToLock);
                         BytesToWrite += TargetCursor;
@@ -504,16 +515,17 @@ int CALLBACK WinMain(
                 LARGE_INTEGER EndCounter;
                 QueryPerformanceCounter(&EndCounter);
 
-                // TODO(beau): Display the value here
                 int64 CyclesElapsed = EndCycleCount - LastCycleCount;
                 int64 CounterElapsed = EndCounter.QuadPart - LastCounter.QuadPart;
                 float MSPerFrame = ((1000.0f*(float)CounterElapsed) / (float)PerfCountFrequency);
                 float FPS = (float)PerfCountFrequency / (float)CounterElapsed;
                 float MCPF = (float)((float)CyclesElapsed / (1000.0f * 1000.0f));
 
+                #if 0
                 char Buffer[256];
                 sprintf(Buffer, "%.02fms/f,  %.02ff/s,  %.02fmc/f\n", MSPerFrame, FPS, MCPF);
                 OutputDebugStringA(Buffer);
+                #endif
 
                 LastCounter = EndCounter;
                 LastCycleCount = EndCycleCount;
