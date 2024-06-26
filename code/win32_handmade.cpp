@@ -28,7 +28,9 @@
 */
 
 #include "handmade.cpp"
+#include "handmade.h"
 
+#include <cstdio>
 #include <dsound.h>
 #include <malloc.h>
 #include <windows.h>
@@ -57,6 +59,66 @@ global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
 
 #define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter);
 typedef DIRECT_SOUND_CREATE(direct_sound_create);
+
+internal debug_read_file_result DEBUGPlatformReadEntireFile(char *Filename) {
+    debug_read_file_result Result = {};
+
+    HANDLE FileHandle = CreateFileA(Filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+    if (FileHandle != INVALID_HANDLE_VALUE) {
+        LARGE_INTEGER FileSize;
+        if (GetFileSizeEx(FileHandle, &FileSize)) {
+            uint32 FileSize32 = SafeTruncateUInt64(FileSize.QuadPart);
+            Result.Contents = VirtualAlloc(0, FileSize32, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+            if (Result.Contents) {
+                DWORD BytesRead;
+                if (ReadFile(FileHandle, Result.Contents, FileSize32, &BytesRead, 0) && FileSize32 == BytesRead) {
+                    // NOTE: File read successfully
+                    Result.ContentsSize = FileSize32;
+                } else {
+                    // TODO: Logging
+                    DEBUGPlatformFreeFileMemory(Result.Contents);
+                    Result.Contents = 0;
+                }
+            } else {
+                // TODO: Logging
+            }
+        } else {
+            // TODO: Logging
+        }
+        CloseHandle(FileHandle);
+    } else {
+        // TODO: Logging
+    }
+
+    return (Result);
+}
+
+internal void DEBUGPlatformFreeFileMemory(void *Memory) {
+    if (Memory) {
+        VirtualFree(Memory, 0, MEM_RELEASE);
+    }
+}
+
+internal bool DEBUGPlatformWriteEntireFile(char *Filename, uint32 MemorySize, void *Memory) {
+    bool Result = false;
+
+    HANDLE FileHandle = CreateFileA(Filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+    if (FileHandle != INVALID_HANDLE_VALUE) {
+        DWORD BytesWritten;
+        if (WriteFile(FileHandle, Memory, MemorySize, &BytesWritten, 0)) {
+            // NOTE: File written successfully
+            Result = (BytesWritten == MemorySize);
+        } else {
+            // TODO: Logging
+            printf("Unable to write file");
+        }
+        CloseHandle(FileHandle);
+    } else {
+        // TODO: Logging
+    }
+
+    return (Result);
+}
 
 internal void Win32LoadXInput(void) {
     // TODO: Test this on Windows 8
@@ -180,7 +242,7 @@ internal void Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, i
     // for clarifying the deal with StretchDIBits and BitBlt!
     // No more DC for us.
     int BitmapMemorySize = (Buffer->Width * Buffer->Height) * BytesPerPixel;
-    Buffer->Memory = VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
+    Buffer->Memory = VirtualAlloc(0, BitmapMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     Buffer->Pitch = Width * BytesPerPixel;
 
     // TODO: Probably clear this to black;

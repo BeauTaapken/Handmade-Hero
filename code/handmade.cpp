@@ -7,6 +7,7 @@
     =================================================================== */
 
 #include "handmade.h"
+#include <cstdio>
 
 internal void GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz) {
     local_persist float tSine;
@@ -47,6 +48,14 @@ internal void GameUpdateAndRender(game_memory *Memory, game_input *Input, game_o
     game_state *GameState = (game_state *)Memory->PermanentStorage;
 
     if (!Memory->IsInitialized) {
+        debug_read_file_result File = DEBUGPlatformReadEntireFile("../code/handmade.cpp");
+        if (File.Contents) {
+            printf("File successfully read");
+            DEBUGPlatformWriteEntireFile("../data/test.out", File.ContentsSize, File.Contents);
+            DEBUGPlatformFreeFileMemory(File.Contents);
+        } else {
+            printf("unable to read file");
+        }
         GameState->ToneHz = 256;
 
         // TODO: This may be more appropriate to do in the platform layer
