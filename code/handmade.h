@@ -24,7 +24,7 @@
 #if HANDMADE_SLOW
 #define Assert(Expression)                                                                                                                 \
     if (!(Expression)) {                                                                                                                   \
-        *(int *)0 = 0;                                                                                                                     \
+        *static_cast<int *>(0) = 0;                                                                                                        \
     }
 #else
 #define Assert(Expression)
@@ -41,7 +41,7 @@
 
 inline uint32 SafeTruncateUInt64(uint64 Value) {
     Assert(Value <= 0xFFFFFFFF);
-    uint32 Result = (uint32)Value;
+    uint32 Result = static_cast<uint32>(Value);
     return (Result);
 }
 
@@ -51,7 +51,6 @@ inline uint32 SafeTruncateUInt64(uint64 Value) {
 #if HANDMADE_INTERNAL
 /*
     NOTE:
-    These are NOT for doing anything in the shipping game - they are blocking and the write doesn't protect against lost data!
  */
 struct debug_read_file_result {
     uint32 ContentsSize;
@@ -105,7 +104,10 @@ struct game_controller_input {
 
     union {
         game_button_state Buttons[6];
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
         struct {
+#pragma GCC diagnostic pop
             game_button_state Up;
             game_button_state Down;
             game_button_state Left;

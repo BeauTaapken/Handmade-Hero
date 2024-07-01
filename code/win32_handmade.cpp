@@ -38,6 +38,13 @@
 
 #include "win32_handmade.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wundef"
+#if __i386__
+#include <x86intrin.h>
+#endif
+#pragma GCC diagnostic pop
+
 // TODO: This is a global for now.
 global_variable bool GlobalRunning;
 global_variable win32_offscreen_buffer GlobalBackbuffer;
@@ -131,17 +138,18 @@ internal void Win32LoadXInput(void) {
         // TODO: Diagnostic
         XInputLibrary = LoadLibraryA("xinput9_1_0.dll");
     }
-
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-function-type"
     if (XInputLibrary) {
-        XInputGetState = (x_input_get_state *)GetProcAddress(XInputLibrary, "XInputGetState");
+        XInputGetState = reinterpret_cast<x_input_get_state *>(GetProcAddress(XInputLibrary, "XInputGetState"));
         if (!XInputGetState) {
             XInputGetState = XInputGetStateStub;
         }
-        XInputSetState = (x_input_set_state *)GetProcAddress(XInputLibrary, "XInputSetState");
+        XInputSetState = reinterpret_cast<x_input_set_state *>(GetProcAddress(XInputLibrary, "XInputSetState"));
         if (!XInputGetState) {
             XInputSetState = XInputSetStateStub;
         }
-
+#pragma GCC diagnostic pop
         // TODO: Diagnostic
     } else {
         // TODO: Diagnostic
@@ -153,8 +161,14 @@ internal void Win32InitDSound(HWND Window, int32 SamplesPerSecond, int32 BufferS
     HMODULE DSoundLibrary = LoadLibraryA("dsound.dll");
 
     if (DSoundLibrary) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-function-type"
+
         // NOTE: Get a DirectSound object! - cooperative
-        direct_sound_create *DirectSoundCreate = (direct_sound_create *)GetProcAddress(DSoundLibrary, "DirectSoundCreate");
+        direct_sound_create *DirectSoundCreate =
+            reinterpret_cast<direct_sound_create *>(GetProcAddress(DSoundLibrary, "DirectSoundCreate"));
+
+#pragma GCC diagnostic pop
 
         // TODO: Double-check that this works on XP - DirectSound8 or 7??
         LPDIRECTSOUND DirectSound;
@@ -262,68 +276,44 @@ internal LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message, WPA
     LRESULT Result = 0;
 
     switch (Message) {
-    case WM_SIZE: {
-    } break;
+        case WM_SIZE: {
+        } break;
 
-    case WM_CLOSE: {
-        // TODO: Handle this with a message to the user?
-        GlobalRunning = false;
-    } break;
-
-    case WM_ACTIVATEAPP: {
-        OutputDebugStringA("WM_ACTIVATEAPP\n");
-    } break;
-
-    case WM_DESTROY: {
-        // TODO: Handle this as an error - recreate window?
-        GlobalRunning = false;
-    } break;
-
-    case WM_SYSKEYDOWN:
-    case WM_SYSKEYUP:
-    case WM_KEYDOWN:
-    case WM_KEYUP: {
-        uint32 VKCode = WParam;
-        bool WasDown = ((LParam & (1 << 30)) != 0);
-        bool IsDown = ((LParam & (1 << 31)) == 0);
-
-        if (WasDown != IsDown) {
-            if (VKCode == 'W') {
-            } else if (VKCode == 'A') {
-            } else if (VKCode == 'S') {
-            } else if (VKCode == 'D') {
-            } else if (VKCode == 'Q') {
-            } else if (VKCode == 'E') {
-            } else if (VKCode == VK_UP) {
-            } else if (VKCode == VK_LEFT) {
-            } else if (VKCode == VK_DOWN) {
-            } else if (VKCode == VK_RIGHT) {
-            } else if (VKCode == VK_ESCAPE) {
-            } else if (VKCode == VK_SPACE) {
-            }
-        }
-
-        // This should be 0 or 1, if not, it'll still work, so no bool.
-        int32 AltKeyWasDown = (LParam & (1 << 29));
-        if ((VKCode == VK_F4) && AltKeyWasDown) {
+        case WM_CLOSE: {
+            // TODO: Handle this with a message to the user?
             GlobalRunning = false;
-        }
-    } break;
+        } break;
 
-    case WM_PAINT: {
-        PAINTSTRUCT Paint;
-        HDC DeviceContext = BeginPaint(Window, &Paint);
+        case WM_ACTIVATEAPP: {
+            OutputDebugStringA("WM_ACTIVATEAPP\n");
+        } break;
 
-        win32_window_dimension Dimension = Win32GetWindowDimension(Window);
-        Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext, Dimension.Width, Dimension.Height);
+        case WM_DESTROY: {
+            // TODO: Handle this as an error - recreate window?
+            GlobalRunning = false;
+        } break;
 
-        EndPaint(Window, &Paint);
-    } break;
+        case WM_SYSKEYDOWN:
+        case WM_SYSKEYUP:
+        case WM_KEYDOWN:
+        case WM_KEYUP: {
+            Assert(!"Keyboard input came in through a non-dispatch message!");
+        } break;
 
-    default: {
-        //                OutputDebugStringA("default\n");
-        Result = DefWindowProcA(Window, Message, WParam, LParam);
-    } break;
+        case WM_PAINT: {
+            PAINTSTRUCT Paint;
+            HDC DeviceContext = BeginPaint(Window, &Paint);
+
+            win32_window_dimension Dimension = Win32GetWindowDimension(Window);
+            Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext, Dimension.Width, Dimension.Height);
+
+            EndPaint(Window, &Paint);
+        } break;
+
+        default: {
+            //                OutputDebugStringA("default\n");
+            Result = DefWindowProcA(Window, Message, WParam, LParam);
+        } break;
     }
 
     return (Result);
@@ -335,12 +325,12 @@ internal void Win32ClearBuffer(win32_sound_output *SoundOutput) {
     VOID *Region2;
     DWORD Region2Size;
     if (SUCCEEDED(GlobalSecondaryBuffer->Lock(0, SoundOutput->SecondaryBufferSize, &Region1, &Region1Size, &Region2, &Region2Size, 0))) {
-        uint8 *DestSample = (uint8 *)Region1;
+        uint8 *DestSample = static_cast<uint8 *>(Region1);
         for (DWORD ByteIndex = 0; ByteIndex < Region1Size; ++ByteIndex) {
             *DestSample++ = 0;
         }
 
-        DestSample = (uint8 *)Region2;
+        DestSample = static_cast<uint8 *>(Region2);
         for (DWORD ByteIndex = 0; ByteIndex < Region2Size; ++ByteIndex) {
             *DestSample++ = 0;
         }
@@ -361,7 +351,7 @@ internal void Win32FillSoundBuffer(win32_sound_output *SoundOutput, DWORD ByteTo
 
         // TODO: Collapse these two loops
         DWORD Region1SampleCount = Region1Size / SoundOutput->BytesPerSample;
-        int16 *DestSample = (int16 *)Region1;
+        int16 *DestSample = static_cast<int16 *>(Region1);
         int16 *SourceSample = SourceBuffer->Samples;
         for (DWORD SampleIndex = 0; SampleIndex < Region1SampleCount; ++SampleIndex) {
             *DestSample++ = *SourceSample++;
@@ -370,7 +360,7 @@ internal void Win32FillSoundBuffer(win32_sound_output *SoundOutput, DWORD ByteTo
         }
 
         DWORD Region2SampleCount = Region2Size / SoundOutput->BytesPerSample;
-        DestSample = (int16 *)Region2;
+        DestSample = static_cast<int16 *>(Region2);
         for (DWORD SampleIndex = 0; SampleIndex < Region2SampleCount; ++SampleIndex) {
             *DestSample++ = *SourceSample++;
             *DestSample++ = *SourceSample++;
@@ -379,6 +369,11 @@ internal void Win32FillSoundBuffer(win32_sound_output *SoundOutput, DWORD ByteTo
 
         GlobalSecondaryBuffer->Unlock(Region1, Region1Size, Region2, Region2Size);
     }
+}
+
+internal void Win32ProcessKeyboardMessage(game_button_state *NewState, bool IsDown) {
+    NewState->EndedDown = IsDown;
+    ++NewState->HalfTransitionCount;
 }
 
 internal void Win32ProcessXinputDigitalButton(DWORD XinputButtonState, game_button_state *OldState, DWORD ButtonBit,
@@ -427,20 +422,22 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, 
             GlobalRunning = true;
 
             // TODO: Pool with bitmap VirtualAlloc
-            int16 *Samples = (int16 *)VirtualAlloc(0, SoundOutput.SecondaryBufferSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+            int16 *Samples =
+                static_cast<int16 *>(VirtualAlloc(0, SoundOutput.SecondaryBufferSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
 
 #if HANDMADE_INTERNAL
-            LPVOID BaseAddress = (LPVOID)Terabytes((uint64)2);
+            LPVOID BaseAddress = reinterpret_cast<LPVOID>(Terabytes(static_cast<uint64>(2)));
 #else
             LPVOID BaseAddress = 0;
 #endif
             game_memory GameMemory = {};
             GameMemory.PermanentStorageSize = Megabytes(64);
-            GameMemory.TransientStorageSize = Gigabytes((uint64)4);
+            GameMemory.TransientStorageSize = Gigabytes(static_cast<uint64>(1));
 
             uint64 TotalSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize;
-            GameMemory.PermanentStorage = VirtualAlloc(BaseAddress, TotalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-            GameMemory.TransientStorage = ((uint8 *)GameMemory.PermanentStorage + GameMemory.PermanentStorageSize);
+            GameMemory.PermanentStorage =
+                VirtualAlloc(BaseAddress, static_cast<size_t>(TotalSize), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+            GameMemory.TransientStorage = (static_cast<uint8 *>(GameMemory.PermanentStorage) + GameMemory.PermanentStorageSize);
 
             if (Samples && GameMemory.PermanentStorage && GameMemory.TransientStorageSize) {
                 game_input Input[2] = {};
@@ -453,16 +450,68 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, 
                 while (GlobalRunning) {
                     MSG Message;
 
+                    game_controller_input *KeyboardController = &NewInput->Controllers[0];
+                    // TODO: Zeroing macro
+                    // TODO: We can't zero everything because the up/down state will be wrong!!!
+                    game_controller_input ZeroController = {};
+                    *KeyboardController = ZeroController;
+
                     while (PeekMessage(&Message, 0, 0, 0, PM_REMOVE)) {
                         if (Message.message == WM_QUIT) {
                             GlobalRunning = false;
                         }
-                        TranslateMessage(&Message);
-                        DispatchMessage(&Message);
+                        switch (Message.message) {
+                            case WM_SYSKEYDOWN:
+                            case WM_SYSKEYUP:
+                            case WM_KEYDOWN:
+                            case WM_KEYUP: {
+                                uint32 VKCode = static_cast<uint32>(Message.wParam);
+                                bool WasDown = ((Message.lParam & (1 << 30)) != 0);
+                                bool IsDown = ((Message.lParam & (1 << 31)) == 0);
+
+                                if (WasDown != IsDown) {
+                                    if (VKCode == 'W') {
+                                        Win32ProcessKeyboardMessage(&KeyboardController->Up, IsDown);
+                                    } else if (VKCode == 'A') {
+                                        Win32ProcessKeyboardMessage(&KeyboardController->Left, IsDown);
+                                    } else if (VKCode == 'S') {
+                                        Win32ProcessKeyboardMessage(&KeyboardController->Down, IsDown);
+                                    } else if (VKCode == 'D') {
+                                        Win32ProcessKeyboardMessage(&KeyboardController->Right, IsDown);
+                                    } else if (VKCode == 'Q') {
+                                        Win32ProcessKeyboardMessage(&KeyboardController->LeftShoulder, IsDown);
+                                    } else if (VKCode == 'E') {
+                                        Win32ProcessKeyboardMessage(&KeyboardController->RightShoulder, IsDown);
+                                    } else if (VKCode == VK_UP) {
+                                        Win32ProcessKeyboardMessage(&KeyboardController->Up, IsDown);
+                                    } else if (VKCode == VK_LEFT) {
+                                        Win32ProcessKeyboardMessage(&KeyboardController->Left, IsDown);
+                                    } else if (VKCode == VK_DOWN) {
+                                        Win32ProcessKeyboardMessage(&KeyboardController->Down, IsDown);
+                                    } else if (VKCode == VK_RIGHT) {
+                                        Win32ProcessKeyboardMessage(&KeyboardController->Right, IsDown);
+                                    } else if (VKCode == VK_ESCAPE) {
+                                        GlobalRunning = false;
+                                    } else if (VKCode == VK_SPACE) {
+                                    }
+                                }
+
+                                // This should be 0 or 1, if not, it'll still work, so no bool.
+                                int32 AltKeyWasDown = (Message.lParam & (1 << 29));
+                                if ((VKCode == VK_F4) && AltKeyWasDown) {
+                                    GlobalRunning = false;
+                                }
+                            } break;
+
+                            default: {
+                                TranslateMessage(&Message);
+                                DispatchMessage(&Message);
+                            } break;
+                        }
                     }
 
                     // TODO: Should we poll this more frequently
-                    int MaxControllerCount = XUSER_MAX_COUNT;
+                    DWORD MaxControllerCount = XUSER_MAX_COUNT;
                     if (MaxControllerCount > ArrayCount(NewInput->Controllers)) {
                         MaxControllerCount = ArrayCount(NewInput->Controllers);
                     }
@@ -494,17 +543,17 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, 
                             // TODO: Min/Max macros!!!
                             float X;
                             if (Pad->sThumbLX < 0) {
-                                X = (float)Pad->sThumbLX / 32768.0f;
+                                X = static_cast<float>(Pad->sThumbLX) / 32768.0f;
                             } else {
-                                X = (float)Pad->sThumbLX / 32767.0f;
+                                X = static_cast<float>(Pad->sThumbLX) / 32767.0f;
                             }
                             NewController->MinX = NewController->MaxX = NewController->EndX = X;
 
                             float Y;
                             if (Pad->sThumbLX < 0) {
-                                Y = (float)Pad->sThumbLX / 32768.0f;
+                                Y = static_cast<float>(Pad->sThumbLX) / 32768.0f;
                             } else {
-                                Y = (float)Pad->sThumbLX / 32767.0f;
+                                Y = static_cast<float>(Pad->sThumbLX) / 32767.0f;
                             }
                             NewController->MinY = NewController->MaxY = NewController->EndY = Y;
 
@@ -577,9 +626,9 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, 
 
                     int64 CyclesElapsed = EndCycleCount - LastCycleCount;
                     int64 CounterElapsed = EndCounter.QuadPart - LastCounter.QuadPart;
-                    float MSPerFrame = ((1000.0f * (float)CounterElapsed) / (float)PerfCountFrequency);
-                    float FPS = (float)PerfCountFrequency / (float)CounterElapsed;
-                    float MCPF = (float)((float)CyclesElapsed / (1000.0f * 1000.0f));
+                    float MSPerFrame = ((1000.0f * static_cast<float>(CounterElapsed)) / static_cast<float>(PerfCountFrequency));
+                    float FPS = static_cast<float>(PerfCountFrequency) / static_cast<float>(CounterElapsed);
+                    float MCPF = static_cast<float>(static_cast<float>(CyclesElapsed) / (1000.0f * 1000.0f));
 
 #if 0
                 char Buffer[256];
