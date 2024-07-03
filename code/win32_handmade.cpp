@@ -49,6 +49,7 @@
 global_variable bool GlobalRunning;
 global_variable win32_offscreen_buffer GlobalBackbuffer;
 global_variable LPDIRECTSOUNDBUFFER GlobalSecondaryBuffer;
+global_variable int64 GlobalPerfCountFrequency;
 
 // NOTE: XInputGetState
 #define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE *pState)
@@ -454,11 +455,25 @@ internal float Win32ProcessXInputStickValue(SHORT Value, SHORT DeadZoneThreshold
     return (Result);
 }
 
-int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowCmd) {
+inline LARGE_INTEGER Win32GetWallClock(void) {
+    LARGE_INTEGER Result;
+    QueryPerformanceCounter(&Result);
+    return (Result);
+}
 
+inline float Win32GetSecondsElapsed(LARGE_INTEGER Start, LARGE_INTEGER End) {
+    float Result = ((static_cast<float>(End.QuadPart - Start.QuadPart)) / static_cast<float>(GlobalPerfCountFrequency));
+    return (Result);
+}
+
+int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowCmd) {
     LARGE_INTEGER PerfCounterFrequencyResult;
     QueryPerformanceFrequency(&PerfCounterFrequencyResult);
-    int64 PerfCountFrequency = PerfCounterFrequencyResult.QuadPart;
+    GlobalPerfCountFrequency = PerfCounterFrequencyResult.QuadPart;
+
+    // NOTE: Set the Windows scheduler granuality to 1ms so that our Sleep() can be more granular.
+    UINT DesiredSchedulerMS = 1;
+    bool SleepIsGranular = (timeBeginPeriod(DesiredSchedulerMS) == TIMERR_NOERROR);
 
     Win32LoadXInput();
 
@@ -471,6 +486,11 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, 
     WindowClass.hInstance = Instance;
     //    WindowClass.hIcon = ;
     WindowClass.lpszClassName = "HandmadeHeroWindowClass";
+
+    // TODO: How do we reliably query this on Windows/Wine?
+    int MonitorRefreshHz = 60;
+    int GameUpdateHz = MonitorRefreshHz / 2;
+    float TargetSecondsPerFrame = 1.0f / static_cast<float>(MonitorRefreshHz);
 
     if (RegisterClass(&WindowClass)) {
         HWND Window = CreateWindowEx(0, WindowClass.lpszClassName, "Handmade Hero", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT,
@@ -516,8 +536,8 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, 
                 game_input *NewInput = &Input[0];
                 game_input *OldInput = &Input[1];
 
-                LARGE_INTEGER LastCounter;
-                QueryPerformanceCounter(&LastCounter);
+                LARGE_INTEGER LastCounter = Win32GetWallClock();
+
                 int64 LastCycleCount = __rdtsc();
                 while (GlobalRunning) {
                     // TODO: Zeroing macro
@@ -635,6 +655,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, 
                         SoundIsValid = true;
                     }
 
+                    // TODO: Sound is wrong now, because we haven't updated it go with the new frame loop.
                     game_sound_output_buffer SoundBuffer = {};
                     SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
                     SoundBuffer.SampleCount = BytesToWrite / SoundOutput.BytesPerSample;
@@ -647,38 +668,56 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, 
                     Buffer.Pitch = GlobalBackbuffer.Pitch;
                     GameUpdateAndRender(&GameMemory, NewInput, &Buffer, &SoundBuffer);
 
-                    // NOTE: DirectSound output test
                     if (SoundIsValid) {
                         Win32FillSoundBuffer(&SoundOutput, ByteToLock, BytesToWrite, &SoundBuffer);
+                    }
+
+                    LARGE_INTEGER WorkCounter = Win32GetWallClock();
+                    float WorkSecondsElapsed = Win32GetSecondsElapsed(LastCounter, WorkCounter);
+
+                    // TODO: NOT TESTED YET! PROBABLY BUGGY!!!!!
+                    float SecondsElapsedForFrame = WorkSecondsElapsed;
+                    if (SecondsElapsedForFrame < TargetSecondsPerFrame) {
+                        if (SleepIsGranular) {
+                            DWORD SleepMS = static_cast<DWORD>(1000.0f * (TargetSecondsPerFrame - SecondsElapsedForFrame));
+                            if (SleepMS > 0) {
+                                Sleep(SleepMS);
+                            }
+                        }
+
+                        float TestSecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
+                        Assert(TestSecondsElapsedForFrame < TargetSecondsPerFrame);
+
+                        while (SecondsElapsedForFrame < TargetSecondsPerFrame) {
+                            SecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
+                        }
+                    } else {
+                        // TODO: MISSED FRAME RATE!
+                        // TODO: Logging
                     }
 
                     win32_window_dimension Dimension = Win32GetWindowDimension(Window);
                     Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext, Dimension.Width, Dimension.Height);
 
-                    int64 EndCycleCount = __rdtsc();
-
-                    LARGE_INTEGER EndCounter;
-                    QueryPerformanceCounter(&EndCounter);
-
-                    int64 CyclesElapsed = EndCycleCount - LastCycleCount;
-                    int64 CounterElapsed = EndCounter.QuadPart - LastCounter.QuadPart;
-                    float MSPerFrame = ((1000.0f * static_cast<float>(CounterElapsed)) / static_cast<float>(PerfCountFrequency));
-                    float FPS = static_cast<float>(PerfCountFrequency) / static_cast<float>(CounterElapsed);
-                    float MCPF = static_cast<float>(static_cast<float>(CyclesElapsed) / (1000.0f * 1000.0f));
-
-#if 0
-                char Buffer[256];
-                sprintf(Buffer, "%.02fms/f,  %.02ff/s,  %.02fmc/f\n", MSPerFrame, FPS, MCPF);
-                OutputDebugStringA(Buffer);
-#endif
-
-                    LastCounter = EndCounter;
-                    LastCycleCount = EndCycleCount;
-
                     game_input *Temp = NewInput;
                     NewInput = OldInput;
                     OldInput = Temp;
                     // TODO: Should I clear these here?
+
+                    LARGE_INTEGER EndCounter = Win32GetWallClock();
+                    float MSPerFrame = 1000.0f * Win32GetSecondsElapsed(LastCounter, EndCounter);
+                    LastCounter = EndCounter;
+
+                    uint64 EndCycleCount = __rdtsc();
+                    uint64 CyclesElapsed = EndCycleCount - LastCycleCount;
+                    LastCycleCount = EndCycleCount;
+
+                    float FPS = 0.0f;
+                    float MCPF = static_cast<double>(static_cast<double>(CyclesElapsed) / (1000.0f * 1000.0f));
+
+                    char FPSBuffer[256];
+                    _snprintf_s(FPSBuffer, sizeof(FPSBuffer), "%.02fms/f,  %.02ff/s,  %.02fmc/f\n", MSPerFrame, FPS, MCPF);
+                    OutputDebugStringA(FPSBuffer);
                 }
             } else {
                 // TODO: Logging

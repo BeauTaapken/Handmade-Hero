@@ -7,7 +7,7 @@ export CommonCompilerFlags="-DHANDMADE_INTERNAL=1 -DHANDMADE_SLOW=1 -Werror -Wal
 	-Wl,-Map=win32_handmade.map \
 	-Wno-unused-parameter -Wno-unused-variable \
 	-g -O3"
-export CommonLinkerFlags="-lgdi32"
+export CommonLinkerFlags="-lgdi32 -lwinmm"
 
 mkdir -p ${HANDMADE_BASE_DIR}/build
 pushd ${HANDMADE_BASE_DIR}/build
