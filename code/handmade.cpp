@@ -59,7 +59,7 @@ internal void GameUpdateAndRender(game_memory *Memory, game_input *Input, game_o
         Memory->IsInitialized = true;
     }
 
-    for (int ControllerIndex = 0; ControllerIndex < static_cast<int>(ArrayCount(Input->Controllers)); ++ControllerIndex) {
+    for (int ControllerIndex = 0; ControllerIndex < ArrayCount(Input->Controllers); ++ControllerIndex) {
         game_controller_input *Controller = GetController(Input, ControllerIndex);
         if (Controller->IsAnalog) {
             // NOTE: Use analog movement tuning
