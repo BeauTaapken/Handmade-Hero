@@ -20,7 +20,10 @@ internal void GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz)
         *SampleOut++ = SampleValue;
         *SampleOut++ = SampleValue;
 
-        tSine += 2.0f * Pi32 * 1.0f / static_cast<float>(WavePeriod);
+        tSine += 2.0f * Pi * 1.0f / static_cast<float>(WavePeriod);
+        if (tSine > 2.0f * Pi) {
+            tSine -= 2.0f * Pi;
+        }
     }
 }
 
@@ -40,8 +43,7 @@ internal void RenderWeirdGradient(game_offscreen_buffer *Buffer, int BlueOffset,
     }
 }
 
-internal void GameUpdateAndRender(game_memory *Memory, game_input *Input, game_offscreen_buffer *Buffer,
-                                  game_sound_output_buffer *SoundBuffer) {
+internal void GameUpdateAndRender(game_memory *Memory, game_input *Input, game_offscreen_buffer *Buffer) {
     Assert((&Input->Controllers[0].Start - &Input->Controllers[0].Buttons[0]) == (ArrayCount(Input->Controllers[0].Buttons) - 1));
     Assert(sizeof(game_state) <= Memory->PermanentStorageSize);
 
@@ -53,7 +55,7 @@ internal void GameUpdateAndRender(game_memory *Memory, game_input *Input, game_o
             DEBUGPlatformWriteEntireFile(const_cast<char *>("../data/test.out"), File.ContentsSize, File.Contents);
             DEBUGPlatformFreeFileMemory(File.Contents);
         }
-        GameState->ToneHz = 256;
+        GameState->ToneHz = 512;
 
         // TODO: This may be more appropriate to do in the platform layer
         Memory->IsInitialized = true;
@@ -64,7 +66,7 @@ internal void GameUpdateAndRender(game_memory *Memory, game_input *Input, game_o
         if (Controller->IsAnalog) {
             // NOTE: Use analog movement tuning
             GameState->BlueOffset += static_cast<int>(4.0f * (Controller->StickAverageX));
-            GameState->ToneHz = 256 + static_cast<int>(128.0f * (Controller->StickAverageY));
+            GameState->ToneHz = 512 + static_cast<int>(128.0f * (Controller->StickAverageY));
         } else {
             // NOTE: Use digital movement tuning
             if (Controller->MoveLeft.EndedDown) {
@@ -80,7 +82,10 @@ internal void GameUpdateAndRender(game_memory *Memory, game_input *Input, game_o
         }
     }
 
-    // TODO: Allow sample offsets here for more robust platform options
-    GameOutputSound(SoundBuffer, GameState->ToneHz);
     RenderWeirdGradient(Buffer, GameState->BlueOffset, GameState->GreenOffset);
+}
+
+internal void GameGetSoundSamples(game_memory *Memory, game_sound_output_buffer *SoundBuffer) {
+    game_state *GameState = static_cast<game_state *>(Memory->PermanentStorage);
+    GameOutputSound(SoundBuffer, GameState->ToneHz);
 }

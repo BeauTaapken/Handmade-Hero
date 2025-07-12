@@ -6,7 +6,7 @@
 #define local_persist static
 #define global_variable static
 
-#define Pi32 3.14159265359f
+#define Pi 3.14159265359f
 
 typedef int8_t int8;
 typedef int16_t int16;
