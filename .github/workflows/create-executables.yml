@@ -1,8 +1,9 @@
-Create executables
+name: Create executables
 
 on:
   push:
     branches:
+    - master
 
 jobs:
   build-windows-exe:
