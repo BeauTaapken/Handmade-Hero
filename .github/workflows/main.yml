@@ -1,0 +1,18 @@
+Create executables
+
+on:
+  push:
+    branches:
+
+jobs:
+  build-windows-exe:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: setup mingw
+      run: |
+        sudo apt-get install gcc-mingw-w64
+    - name: build windows exe
+      run: |
+        sh ./build.sh
+      
