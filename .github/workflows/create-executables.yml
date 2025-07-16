@@ -19,7 +19,7 @@ jobs:
         path: main-repo
         
     - name: setup mingw
-      run: sudo apt-get update && sudo apt-get install g++-mingw-w64-x86-64 gcc-mingw-w64-x86-64 gcc-mingw-w64-i686
+      run: sudo apt-get update && sudo apt-get install g++-mingw-w64-x86-64 gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 g++-mingw-w64-i686
         
     - name: build windows exe
       run: bash ./main-repo/build.sh
@@ -30,28 +30,18 @@ jobs:
         VERSION=$(date +"%Y.%m.%d-%H%M%S")
         echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
         echo "name=Automated Build $VERSION" >> "$GITHUB_OUTPUT"
+
+    - name: Zip build output
+      run: zip -j handmade-windows.zip ./main-repo/build/handmade-windows*
       
     - name: Create GitHub Release
       id: create_release
-      uses: actions/create-release@v1
+      uses: softprops/action-gh-release@v2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ steps.release_meta.outputs.tag }}
-        release_name: Release ${{ steps.release_meta.outputs.name }}
+        name: Release ${{ steps.release_meta.outputs.name }}
         draft: false
-        prerelease: false
-
-    - name: Zip build output
-      run: zip -j handmade-windows.zip ./main-repo/build/handmade-windows*
-
-    - name: Upload release asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: handmade-windows.zip
-        asset_name: handmade-windows.zip
-        asset_content_type: application/octet-stream
-        
+        prerelease: true
+        files: handmade-windows.zip
