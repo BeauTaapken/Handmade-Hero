@@ -27,7 +27,7 @@ jobs:
     - name: Generate release tag and name
       id: release_meta
       run: |
-        VERSION=$(date +"%Y.%m.%d-%H%M%S")
+        VERSION=$(date +"%Y.%m.%d")-$(git rev-parse --short HEAD)
         echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
         echo "name=Automated Build $VERSION" >> "$GITHUB_OUTPUT"
 
@@ -41,7 +41,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ steps.release_meta.outputs.tag }}
-        name: Release ${{ steps.release_meta.outputs.name }}
         draft: false
         prerelease: true
+        generate_release_notes: true
         files: handmade-windows.zip
