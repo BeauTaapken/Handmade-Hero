@@ -18,6 +18,4 @@ jobs:
       run: |
         sudo apt-get install g++-mingw-w64-x86-64 gcc-mingw-w64-x86-64
     - name: build windows exe
-      run: |
-        ./main-repo/build.sh
-      
+      run: bash ./main-repo/build.sh
