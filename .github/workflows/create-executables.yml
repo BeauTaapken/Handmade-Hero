@@ -16,7 +16,7 @@ jobs:
         path: main-repo
     - name: setup mingw
       run: |
-        sudo apt-get install gcc-mingw-w64
+        sudo apt-get install gcc-mingw-w64-x86-64
     - name: build windows exe
       run: |
         ./main-repo/build.sh
