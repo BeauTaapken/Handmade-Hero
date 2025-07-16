@@ -19,8 +19,7 @@ jobs:
         path: main-repo
         
     - name: setup mingw
-      run: |
-        sudo apt-get install g++-mingw-w64-x86-64 gcc-mingw-w64-x86-64
+      run: sudo apt-get update && sudo apt-get install g++-mingw-w64-x86-64 gcc-mingw-w64-x86-64 gcc-mingw-w64-i686
         
     - name: build windows exe
       run: bash ./main-repo/build.sh
@@ -44,7 +43,7 @@ jobs:
         prerelease: false
 
     - name: Zip build output
-      run: zip -r handmade-windows.zip ./main-repo/build/handmade-windows*
+      run: zip -j handmade-windows.zip ./main-repo/build/handmade-windows*
 
     - name: Upload release asset
       uses: actions/upload-release-asset@v1
