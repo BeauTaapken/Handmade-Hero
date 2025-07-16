@@ -44,7 +44,7 @@ jobs:
         prerelease: false
 
     - name: Zip build output
-      run: zip -j handmade-windows.zip ./main-repo/build/handmade-windows
+      run: zip -r handmade-windows.zip ./main-repo/build/handmade-windows*
 
     - name: Upload release asset
       uses: actions/upload-release-asset@v1
