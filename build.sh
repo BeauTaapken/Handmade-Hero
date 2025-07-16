@@ -13,7 +13,7 @@ mkdir -p ${HANDMADE_BASE_DIR}/build
 pushd ${HANDMADE_BASE_DIR}/build
 x86_64-w64-mingw32-gcc ${CommonCompilerFlags} ${HANDMADE_BASE_DIR}/code/win32_handmade.cpp -o handmade-windows ${CommonLinkerFlags}
 
-# i686-w64-mingw32-gcc ${CommonCompilerFlags} ${HANDMADE_BASE_DIR}/code/win32_handmade.cpp -o handmade-windows ${CommonLinkerFlags}
+i686-w64-mingw32-gcc ${CommonCompilerFlags} ${HANDMADE_BASE_DIR}/code/win32_handmade.cpp -o handmade-windows32 ${CommonLinkerFlags}
 
 popd
 

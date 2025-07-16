@@ -1,7 +1,4 @@
 .idea
 *.DotSettings.user
 
-build/*.d
-build/*.map
-
-# Make the build folder not be pushed and remove it entirely once github pipelines has been setup to build the game and put it on a release part of git? Will mostly be for a bit of learning how Git CI works with releases but also prevents me from having old exe's on there if I forget to build or something
+build/
