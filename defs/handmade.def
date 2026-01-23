@@ -1,0 +1,4 @@
+LIBRARY "handmade"
+EXPORTS
+    GameUpdateAndRender
+    GameGetSoundSamples

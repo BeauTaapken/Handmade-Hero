@@ -7,8 +7,6 @@
     $Notice: (C) Copyright 2024 by Beau Taapken. All Rights Reserved. $
     =================================================================== */
 
-#include "common/typedefs.h"
-
 /*
   NOTE:
 
@@ -20,6 +18,8 @@
     0 - No slow code allowed!
     1 - Slow code allowed.
  */
+
+#include "common/typedefs.h"
 
 #if HANDMADE_SLOW
 #define Assert(Expression)                                                                                                                 \
@@ -56,9 +56,16 @@ struct debug_read_file_result {
     uint32 ContentsSize;
     void *Contents;
 };
-internal debug_read_file_result DEBUGPlatformReadEntireFile(char *Filename);
-internal void DEBUGPlatformFreeFileMemory(void *Memory);
-internal bool DEBUGPlatformWriteEntireFile(char *Filename, uint32 MemorySize, void *Memory);
+
+#define DEBUG_PLATFORM_FREE_FILE_MEMORY(name) void name(void *Memory)
+typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(debug_platform_free_file_memory);
+
+#define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) debug_read_file_result name(char *Filename)
+typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
+
+#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) bool name(char *Filename, uint32 MemorySize, void *Memory)
+typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
+
 #endif
 
 /*
@@ -138,13 +145,22 @@ struct game_memory {
     void *PermanentStorage; // NOTE: REQUIRED to be cleared to zero at startup
     uint64 TransientStorageSize;
     void *TransientStorage; // NOTE: REQUIRED to be cleared to zero at startup
+
+    debug_platform_free_file_memory *DEBUGPlatformFreeFileMemory;
+    debug_platform_read_entire_file *DEBUGPlatformReadEntireFile;
+    debug_platform_write_entire_file *DEBUGPlatformWriteEntireFile;
 };
 
-internal void GameUpdateAndRender(game_memory *Memory, game_input *Input, game_offscreen_buffer *Buffer);
+
+#define GAME_UPDATE_AND_RENDER(name) void name(game_memory *Memory, game_input *Input, game_offscreen_buffer *Buffer)
+typedef GAME_UPDATE_AND_RENDER(game_update_and_render);
+GAME_UPDATE_AND_RENDER(GameUpdateAndRenderStub) { }
 
 // Note: At the moment, this has to be a very fast function, it cannot be more than a millisecond or so.
 // TODO: Reduce the pressure on this function's performance by measuring it or asking about it, etc.
-internal void GameGetSoundSamples(game_memory *Memory, game_sound_output_buffer *SoundBuffer);
+#define GAME_GET_SOUND_SAMPLES(name) void name(game_memory *Memory, game_sound_output_buffer *SoundBuffer)
+typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
+GAME_GET_SOUND_SAMPLES(GameGetSoundSamplesStub) { }
 
 //
 //
@@ -154,6 +170,8 @@ struct game_state {
     int ToneHz;
     int GreenOffset;
     int BlueOffset;
+
+    float tSine;
 };
 
 #define HANDMADE_H

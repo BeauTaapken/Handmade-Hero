@@ -33,7 +33,7 @@ jobs:
         echo "name=Automated Build $VERSION" >> "$GITHUB_OUTPUT"
 
     - name: Zip build output
-      run: zip -j handmade-windows.zip ./main-repo/build/handmade-windows*
+      run: zip -j handmade-windows.zip ./main-repo/build/handmade-*.exe ./main-repo/build/handmade.dll
       
     - name: Create GitHub Release
       id: create_release
