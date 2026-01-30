@@ -10,7 +10,7 @@ export CommonCompilerFlags="-DHANDMADE_INTERNAL=1 -DHANDMADE_SLOW=1 -DHANDMADE_W
 	-Wstrict-null-sentinel -Wstrict-overflow=5 -Wundef -fdiagnostics-show-option -Wformat-security -Wzero-as-null-pointer-constant \
 	-Wfloat-equal -fstrict-aliasing -Wduplicated-branches -fno-strict-aliasing \
 	-Wno-unused-parameter -Wno-unused-variable \
-	-g -O3"
+	-g -ggdb -O3"
 export CommonLinkerFlags="-lgdi32 -lwinmm"
 
 mkdir -p ${HANDMADE_BASE_DIR}/build
