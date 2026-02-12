@@ -1,6 +1,6 @@
 .idea
 *.DotSettings.user
 *.hmi
-test.out
+*/test.out
 
 build/
