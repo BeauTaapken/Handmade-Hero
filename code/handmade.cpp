@@ -14,8 +14,12 @@ internal void GameOutputSound(game_state *GameState, const game_sound_output_buf
 
     int16 *SampleOut = SoundBuffer->Samples;
     for (int SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; ++SampleIndex) {
+#if 0
         float SineValue = sinf(GameState->tSine);
         int16 SampleValue = static_cast<int16>(SineValue * ToneVolume);
+#else
+        int16 SampleValue = 0;
+#endif
         *SampleOut++ = SampleValue;
         *SampleOut++ = SampleValue;
 
@@ -42,12 +46,29 @@ internal void RenderWeirdGradient(game_offscreen_buffer *Buffer, int BlueOffset,
     }
 }
 
+internal void RenderPlayer(game_offscreen_buffer *Buffer, int PlayerX, int PlayerY) {
+    uint8 *EndOfBuffer = static_cast<uint8 *>(Buffer->Memory) + Buffer->Pitch * Buffer->Height;
+
+    uint32 Color = 0xFFFFFFFF;
+    int Top = PlayerY;
+    int Bottom = PlayerY + 10;
+    int Right = PlayerX + 10;
+    for (int X = PlayerX; X < Right; ++X) {
+        uint8 *Pixel = (static_cast<uint8 *>(Buffer->Memory) + X * Buffer->BytesPerPixel + Top * Buffer->Pitch);
+        for (int Y = Top; Y < Bottom; ++Y) {
+            if ((Pixel >= Buffer->Memory) && ((Pixel + 4) <= EndOfBuffer)) {
+                *reinterpret_cast<uint32 *>(Pixel) = Color;
+            }
+            Pixel += Buffer->Pitch;
+        }
+    }
+}
+
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     Assert((&Input->Controllers[0].Start - &Input->Controllers[0].Buttons[0]) == (ArrayCount(Input->Controllers[0].Buttons) - 1));
     Assert(sizeof(game_state) <= Memory->PermanentStorageSize);
 
     game_state *GameState = static_cast<game_state *>(Memory->PermanentStorage);
-
     if (!Memory->IsInitialized) {
         debug_read_file_result File = Memory->DEBUGPlatformReadEntireFile(const_cast<char *>("../code/handmade.cpp"));
         if (File.Contents) {
@@ -56,6 +77,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
         }
         GameState->ToneHz = 512;
         GameState->tSine = 0.0f;
+
+        GameState->PlayerX = 100;
+        GameState->PlayerY = 100;
 
         // TODO: This may be more appropriate to do in the platform layer
         Memory->IsInitialized = true;
@@ -77,12 +101,34 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
             }
         }
 
-        if (Controller->ActionDown.EndedDown) {
-            GameState->GreenOffset += 1;
+        if (Controller->MoveLeft.EndedDown) {
+            GameState->PlayerX -=1;
         }
+        if (Controller->MoveRight.EndedDown) {
+            GameState->PlayerX += 1;
+        }
+        if (Controller->MoveUp.EndedDown) {
+            GameState->PlayerY -= 1;
+        }
+        if (Controller->MoveDown.EndedDown) {
+            GameState->PlayerY += 1;
+        }
+
+        GameState->PlayerX += Controller->StickAverageX;
+        GameState->PlayerY += Controller->StickAverageY;
+
+        if (GameState->tJump > 0) {
+            GameState->PlayerY += static_cast<int>(5.0f * sinf(0.5f*Pi*GameState->tJump));
+        }
+
+        if (Controller->ActionDown.EndedDown) {
+            GameState->tJump = 4.0f;
+        }
+        GameState->tJump -= 0.033f;
     }
 
     RenderWeirdGradient(Buffer, GameState->BlueOffset, GameState->GreenOffset);
+    RenderPlayer(Buffer, GameState->PlayerX, GameState->PlayerY);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples) {
