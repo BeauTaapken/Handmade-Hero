@@ -1,0 +1,8 @@
+Checks: >
+  -*,
+  bugprone-*,
+  modernize-*,
+  -modernize-use-auto,
+  performance-*,
+  readability-*
+FormatStyle: file
